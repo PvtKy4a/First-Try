@@ -73,7 +73,7 @@ void loop() {
       switch (state_flag) {
         case (true): {
             digitalWrite(sp_num[countr], HIGH);
-            if (countr == 1 && digitalRead(sp_num[4])) digitalWrite(sp_num[4], LOW);      //если счетчик в начальном состоянии, а последняя точка нет, выключить ее
+            if (countr == 1 && digitalRead(sp_num[sp_num_size - 1])) digitalWrite(sp_num[sp_num_size - 1], LOW);      //если счетчик в начальном состоянии, а последняя точка нет, выключить ее
             state_flag = false;
           }
           break;
