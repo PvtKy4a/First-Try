@@ -16,7 +16,7 @@ const char si[] PROGMEM = "Simulation:";      //строки хранятся в
 const char st[] PROGMEM = "State:";
 const char pe[] PROGMEM = "Period:";
 const char le[] PROGMEM = "Led:";
-const char se[] PROGMEM = " sec ";
+const char se[] PROGMEM = "sec";
 const char on[] PROGMEM = "on ";
 const char of[] PROGMEM = "off";
 const char* const names[] PROGMEM = {si, st, pe, le, se, on, of};    //массив ссылок на эти строки
@@ -44,8 +44,14 @@ void loop() {
   btn.tick();   //опрос кнопки
 
   static uint32_t period = 30;
-  if (enc.isLeft()) period = constrain(period - 1, 1, 60);     //если энкодер влево, то уменьшить период на 1 в пределах от 1 до 60
-  if (enc.isRight()) period = constrain(period + 1, 1, 60);    //если энкодер вправо, то увеличть период на 1 в пределах от 1 до 60
+  if (enc.isLeft()) {
+    if (enc.isFast()) period = constrain(period - 5, 15, 60);   //если энкодер быстро влево, то уменьшить период на 5 в пределах от 15 до 60
+    else period = constrain(period - 1, 15, 60);                //если энкодер влево, то уменьшить период на 1 в пределах от 15 до 60
+  }
+  if (enc.isRight()) {
+    if (enc.isFast()) period = constrain(period + 5, 15, 60);   //если энкодер быстро вправо, то увеличть период на 5 в пределах от 15 до 60
+    else period = constrain(period + 1, 15, 60);                //если энкодер вправо, то увеличть период на 1 в пределах от 15 до 60
+  }
 
   static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};    //массив номеров точек
   static uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
@@ -97,6 +103,8 @@ void loop() {
       lcd.setCursor(0, i);
       print_names(&names[i]);             //вывести строки "simulftion, state, period, led"
     }
+    lcd.setCursor(11, 2);
+    print_names(&names[4]);     //вывести строку "sec"
     print_flag = false;         //опустить флаг печати, чтобы текст вывелся один раз
   }
 
@@ -119,7 +127,6 @@ void loop() {
         break;
       case (2): {
           lcd.print(period);        //вывести период
-          print_names(&names[4]);   //вывести за ним строку "sec"
         }
         break;
       case (3): print_names(&names[(led_state) ? 5 : 6]);   //on, если светодиод горит и off если нет
