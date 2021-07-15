@@ -47,22 +47,22 @@ void loop() {
   if (enc.isLeft()) period = constrain(period - 1, 1, 60);     //если энкодер влево, то уменьшить период на 1 в пределах от 1 до 60
   if (enc.isRight()) period = constrain(period + 1, 1, 60);    //если энкодер вправо, то увеличть период на 1 в пределах от 1 до 60
 
+  static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};    //массив номеров точек
+  static uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
   static bool stop_flag = true;   //"стоп" флаг, включает и выключает симуляцию поезда
   static bool start_flag;         //"старт" флаг, устанавливает начальное состояние симуляции
   if (btn.isClick()) {            //если кнопка нажата
     stop_flag = !stop_flag;       //изменить состояние "стоп" флага
     if (stop_flag) {              //если он поднят
-      for (uint8_t i = 6; i < 11; ++i) digitalWrite(i, LOW);    //выключить все выходы
+      for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);    //освободить все точки
     } else start_flag = true;       //иначе поднять "старт" флаг
   }
-  static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};    //массив номеров точек
-  static uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
   if (!stop_flag) {               //если "стоп" флаг опущен, включить симуляцию поезда
     static uint8_t countr;        //счетчик
     static bool state_flag;       //флаг состояний
     static uint32_t period_tmr;   //таймер
     if (start_flag) {             //если "старт" флаг поднят
-      digitalWrite(sp7, HIGH);    //СУ7 "занята", начальное состояние
+      digitalWrite(sp_num[0], HIGH);    //первая точка "занята", начальное состояние
       countr = 1;                 //установить счетчик в начальное состояние
       state_flag = true;          //установить флаг состояний в начальное состояние
       period_tmr = millis();      //обновить таймер
