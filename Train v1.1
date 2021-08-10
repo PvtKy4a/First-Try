@@ -1,8 +1,9 @@
 #include <EncButton.h>
-EncButton<EB_TICK, 2, 3, 4> enc(INPUT);
-EncButton<EB_TICK, 12> btn(INPUT_PULLUP);
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+
+EncButton<EB_TICK, 2, 3, 4> enc(INPUT);
+EncButton<EB_TICK, 12> btn(INPUT_PULLUP);
 LiquidCrystal_I2C lcd(0x3f, 20, 4);
 
 #define sp7 6
@@ -12,14 +13,12 @@ LiquidCrystal_I2C lcd(0x3f, 20, 4);
 #define pre_in 10
 #define led 11
 
-const char si[] PROGMEM = "Simulation:";      //строки хранятся в постоянной памяти, чтобы не загружать оперативную
-const char st[] PROGMEM = "State:";
-const char pe[] PROGMEM = "Period:";
-const char le[] PROGMEM = "Led:";
-const char se[] PROGMEM = "sec";
-const char on[] PROGMEM = "on ";
-const char of[] PROGMEM = "off";
-const char* const names[] PROGMEM = {si, st, pe, le, se, on, of};    //массив ссылок на эти строки
+const char si[] PROGMEM = "Sim: ";      //строки хранятся в постоянной памяти, чтобы не загружать оперативную
+const char st[] PROGMEM = "State: ";
+const char pe[] PROGMEM = "Period: ";
+const char le[] PROGMEM = "Led:    ";
+const char se[] PROGMEM = " sec";
+const char* const names[] PROGMEM = {si, st, pe, le, se,};    //массив ссылок на эти строки
 
 void print_names(int names_num);      //функция, которая будет выводить строки
 
@@ -27,7 +26,6 @@ void setup() {
 
   lcd.init();
   lcd.backlight();
-  lcd.clear();
 
   pinMode(sp7, OUTPUT);
   pinMode(sp5, OUTPUT);
@@ -53,29 +51,33 @@ void loop() {
     else period = constrain(period + 1, 15, 60);                //если энкодер вправо, то увеличть период на 1 в пределах от 15 до 60
   }
 
-  static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};    //массив номеров точек
+  static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};              //массив номеров точек
   static uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
   static bool stop_flag = true;   //"стоп" флаг, включает и выключает симуляцию поезда
   static bool start_flag;         //"старт" флаг, устанавливает начальное состояние симуляции
+  static uint8_t upd_countr = 0;
   if (btn.isClick()) {            //если кнопка нажата
     stop_flag = !stop_flag;       //изменить состояние "стоп" флага
     if (stop_flag) {              //если он поднят
+      ++upd_countr;
       for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);    //освободить все точки
     } else start_flag = true;       //иначе поднять "старт" флаг
   }
   if (!stop_flag) {               //если "стоп" флаг опущен, включить симуляцию поезда
-    static uint8_t countr;        //счетчик
     static bool state_flag;       //флаг состояний
+    static uint8_t countr;        //счетчик
     static uint32_t period_tmr;   //таймер
     if (start_flag) {             //если "старт" флаг поднят
       digitalWrite(sp_num[0], HIGH);    //первая точка "занята", начальное состояние
       countr = 1;                 //установить счетчик в начальное состояние
+      upd_countr = 1;
       state_flag = true;          //установить флаг состояний в начальное состояние
       period_tmr = millis();      //обновить таймер
       start_flag = false;         //"старт" флаг опустить
     }
-    if (millis() - period_tmr >= period * 1000) {             //дальше почти без изменений
+    if (millis() - period_tmr >= period * 1000) {     //дальше почти без изменений
       period_tmr = millis();
+      ++upd_countr;
       switch (state_flag) {
         case (true): {
             digitalWrite(sp_num[countr], HIGH);
@@ -97,47 +99,53 @@ void loop() {
   static bool led_state = 0;
   if (enc.isClick()) digitalWrite(led, led_state = !led_state);      //если кнопка энкодера нажата, вкл/выкл светодиод
 
-  static bool print_flag = true;
-  if (print_flag) {                       //вывод статичной информации на дисплей, если флаг печати поднят
-    for (uint8_t i = 0; i < 4; ++i) {
-      lcd.setCursor(0, i);
-      print_names(&names[i]);             //вывести строки "simulftion, state, period, led"
-    }
-    lcd.setCursor(11, 2);
-    print_names(&names[4]);     //вывести строку "sec"
-    print_flag = false;         //опустить флаг печати, чтобы текст вывелся один раз
-  }
-
   static uint32_t upd_tmr;
-  if (millis() - upd_tmr >= 50) {    //вывод динамической информации 20 раз в скунду
+  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно. Статичная - единоразово, обновляемая - 5 раз в секунду каждая строка
     upd_tmr = millis();
-    static uint8_t t = 0;
-    lcd.setCursor((t == 0) ? 12 : 8, t);
-    switch (t) {
-      case (0): print_names(&names[(stop_flag) ? 6 : 5]);   //вывести  off, если "стоп" флаг поднят. Вывести on, если "стоп" флаг опущен
+    static bool print_flag = true;
+    static uint8_t str = 0;
+    (print_flag) ? lcd.setCursor(0, str) : lcd.setCursor(8, str);
+    switch (str) {
+      case (0): {
+          if (print_flag) print_names(&names[str]);       //строка "Sim"
+          lcd.print((stop_flag) ? F("off") : F("on "));   //вывести  off, если "стоп" флаг поднят и on, если опущен
+        }
         break;
       case (1): {
-          bool sp_states [sp_num_size];                  //массив состояний
-          for (uint8_t i = 0, j = 6, k = 8; i < sp_num_size; ++i, ++j, k += 2) {   //пока i меньше размера массива
-            sp_states[i] = (digitalRead(j));   //считать состояния
-            lcd.setCursor(k, t);
-            lcd.print(sp_states[i]);           //вывести на дисплей
+          if (print_flag) print_names(&names[str]);     //строка "State"
+          static uint8_t pre_upd_countr = 1;
+          if (pre_upd_countr != upd_countr) {               //состояние точек обновляется по факту изменения
+            bool sp_state;                              //переменная хранит состояние точки
+            for (uint8_t i = 0, j = 6, k = 8; i < sp_num_size; ++i, ++j, k += 2) {
+              sp_state = (digitalRead(j));              //считать состояние точки
+              lcd.setCursor(k, str);
+              lcd.print(sp_state);                      //вывести на дисплей
+            }
+            pre_upd_countr = upd_countr;
           }
         }
         break;
       case (2): {
-          lcd.print(period);        //вывести период
+          if (print_flag) print_names(&names[str]);       //строка "Period"
+          lcd.print(period);                              //период
+          if (print_flag) print_names(&names[str + 2]);   //строка "sec"
         }
         break;
-      case (3): print_names(&names[(led_state) ? 5 : 6]);   //on, если светодиод горит и off если нет
+      case (3): {
+          if (print_flag) print_names(&names[str]);       //строка "Led"
+          lcd.print((led_state) ? F("on ") : F("off"));   //on, если светодиод горит и off, если нет
+        }
         break;
     }
-    if (++t == 4) t = 0;
+    if (++str == 4) {
+      str = 0;
+      if (print_flag) print_flag = false;
+    }
   }
 
 }
 
-void print_names(int names_num) {         //функция посимвольно собирает переданную строку из постоянной памяти
+void print_names(int names_num) {             //функция посимвольно собирает переданную строку из постоянной памяти
   char buff[20];                              //в буфер
   uint16_t ptr = pgm_read_word(names_num);
   uint8_t i = 0;
