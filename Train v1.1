@@ -13,14 +13,14 @@ LiquidCrystal_I2C lcd(0x3f, 20, 4);
 #define pre_in 10
 #define led 11
 
-const char si[] PROGMEM = "Sim: ";      //строки хранятся в постоянной памяти, чтобы не загружать оперативную
-const char st[] PROGMEM = "State: ";
+const char si[] PROGMEM = "Sim:    ";      //строки хранятся в постоянной памяти, чтобы не загружать оперативную
+const char st[] PROGMEM = "State:  ";
 const char pe[] PROGMEM = "Period: ";
-const char le[] PROGMEM = "Led:    ";
-const char se[] PROGMEM = " sec";
-const char* const names[] PROGMEM = {si, st, pe, le, se,};    //массив ссылок на эти строки
+const char le[] PROGMEM = "Uptime: ";
+const char* const names[] PROGMEM = {si, st, pe, le,};    //массив ссылок на эти строки
 
 void print_names(int names_num);      //функция, которая будет выводить строки
+void uptime(int uptime_sec);
 
 void setup() {
 
@@ -96,53 +96,60 @@ void loop() {
     }
   }
 
-  static bool led_state = 0;
-  if (enc.isClick()) digitalWrite(led, led_state = !led_state);      //если кнопка энкодера нажата, вкл/выкл светодиод
-
   static uint32_t upd_tmr;
-  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно. Статичная - единоразово, обновляемая - 5 раз в секунду каждая строка
+  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно
     upd_tmr = millis();
-    static bool print_flag = true;
-    static uint8_t str = 0;
-    (print_flag) ? lcd.setCursor(0, str) : lcd.setCursor(8, str);
-    switch (str) {
-      case (0): {
-          if (print_flag) print_names(&names[str]);       //строка "Sim"
-          lcd.print((stop_flag) ? F("off") : F("on "));   //вывести  off, если "стоп" флаг поднят и on, если опущен
-        }
-        break;
-      case (1): {
-          if (print_flag) print_names(&names[str]);     //строка "State"
-          static uint8_t pre_upd_countr = 1;
-          if (pre_upd_countr != upd_countr) {               //состояние точек обновляется по факту изменения
-            bool sp_state;                              //переменная хранит состояние точки
-            for (uint8_t i = 0, j = 6, k = 8; i < sp_num_size; ++i, ++j, k += 2) {
-              sp_state = (digitalRead(j));              //считать состояние точки
-              lcd.setCursor(k, str);
-              lcd.print(sp_state);                      //вывести на дисплей
-            }
-            pre_upd_countr = upd_countr;
-          }
-        }
-        break;
-      case (2): {
-          if (print_flag) print_names(&names[str]);       //строка "Period"
-          lcd.print(period);                              //период
-          if (print_flag) print_names(&names[str + 2]);   //строка "sec"
-        }
-        break;
-      case (3): {
-          if (print_flag) print_names(&names[str]);       //строка "Led"
-          lcd.print((led_state) ? F("on ") : F("off"));   //on, если светодиод горит и off, если нет
-        }
-        break;
+    static bool print_names_flag = true;
+    static uint8_t column = 1;
+    lcd.setCursor(column, 0);
+    if (print_names_flag) print_names(&names[0]);       //"Sim"
+    lcd.print((stop_flag) ? F("off") : F("on "));       //off, если "стоп" флаг поднят и on, если опущен
+    lcd.setCursor(column, 1);
+    if (print_names_flag) print_names(&names[1]);       //"State"
+    static uint8_t pre_upd_countr = 1;
+    if (pre_upd_countr != upd_countr) {                 //состояние точек обновляется по факту изменения
+      for (uint8_t i = 0, j = 6; i < sp_num_size; ++i, ++j) {
+        bool sp_state = (digitalRead(j));               //считать состояние точки
+        lcd.print(sp_state);                            //вывести на дисплей
+        lcd.print(" ");
+      }
+      pre_upd_countr = upd_countr;
     }
-    if (++str == 4) {
-      str = 0;
-      if (print_flag) print_flag = false;
+    lcd.setCursor(column, 2);
+    if (print_names_flag) print_names(&names[2]);       //"Period"
+    lcd.print(period);                                  //значение периода
+    if (print_names_flag) lcd.print(F(" sec"));         //"sec"
+    lcd.setCursor(column, 3);
+    if (print_names_flag) print_names(&names[3]);       //"Uptime"
+    static uint32_t uptime_tmr;
+    static int sec = 0;
+    if (!stop_flag && millis() - uptime_tmr >= 1000) {
+      uptime_tmr = millis();
+      sec += 1;
+    } else if (stop_flag) sec = 0;
+    uptime(sec);
+    if (print_names_flag) {
+      print_names_flag = false;
+      column = 9;
     }
   }
 
+}
+
+void uptime(int uptime_sec) {
+  int sec = uptime_sec;
+  byte miin = sec / 60;
+  byte this_min = miin % 60;
+  byte this_hour = sec / 3600;
+  if (this_hour < 10) lcd.print(0);
+  lcd.print(this_hour);
+  lcd.print(":");
+  if (this_min < 10) lcd.print(0);
+  lcd.print(this_min);
+  lcd.print(":");
+  byte this_sec = sec % 60;
+  if (this_sec < 10) lcd.print(0);
+  lcd.print(this_sec);
 }
 
 void print_names(int names_num) {             //функция посимвольно собирает переданную строку из постоянной памяти
