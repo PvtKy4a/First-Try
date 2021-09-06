@@ -19,8 +19,9 @@ const char le[] PROGMEM = "Uptime: ";
 const char ti[] PROGMEM = "Timer:  ";
 const char* const names[] PROGMEM = {st, pe, le, ti};    //массив ссылок на эти строки
 
-void print_names(int names_num);      //функция, которая будет выводить строки
-void uptime(int uptime_sec);
+void print_names(int names_num);       //функция выводит строки меню
+void uptime(bool this_stop_flag);      //функция времени работы
+void timer(bool this_stop_flag);       //функция таймера
 
 void setup() {
 
@@ -97,7 +98,7 @@ void loop() {
   }
 
   static uint32_t upd_tmr;
-  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно
+  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно 20 раз в секунду
     upd_tmr = millis();
     static bool print_names_flag = true;
     static uint8_t column = 1;
@@ -105,12 +106,12 @@ void loop() {
     if (print_names_flag) print_names(&names[0]);       //"State"
     static uint8_t pre_upd_countr = 1;
     if (pre_upd_countr != upd_countr) {                 //состояние точек обновляется по факту изменения
+      pre_upd_countr = upd_countr;
       for (uint8_t i = 0, j = 6; i < sp_num_size; ++i, ++j) {
         bool sp_state = (digitalRead(j));               //считать состояние точки
         lcd.print(sp_state);                            //вывести на дисплей
         lcd.print(" ");
       }
-      pre_upd_countr = upd_countr;
     }
     lcd.setCursor(column, 1);
     if (print_names_flag) print_names(&names[1]);       //"Period"
@@ -118,15 +119,10 @@ void loop() {
     if (print_names_flag) lcd.print(F(" sec"));         //"sec"
     lcd.setCursor(column, 2);
     if (print_names_flag) print_names(&names[2]);       //"Uptime"
-    static uint32_t uptime_tmr;
-    static int sec = 0;
-    if (!stop_flag && millis() - uptime_tmr >= 1000) {
-      uptime_tmr = millis();
-      sec += 1;
-    } else if (stop_flag) sec = 0;
-    uptime(sec);                                        //время работы
+  //  uptime(stop_flag);                                  //время работы
     lcd.setCursor(column, 3);
     if (print_names_flag) print_names(&names[3]);       //"Timer"
+  //  timer(stop_flag);
     if (print_names_flag) {
       print_names_flag = false;
       column = 9;
@@ -135,28 +131,54 @@ void loop() {
 
 }
 
-void uptime(int uptime_sec) {
-  int sec = uptime_sec;
-  byte miin = sec / 60;
-  byte this_min = miin % 60;
-  byte this_hour = sec / 3600;
+void uptime(bool this_stop_flag) {
+  static uint32_t uptime_tmr;
+  static uint16_t sec_count;
+  if (!this_stop_flag && millis() - uptime_tmr >= 1000) {  //считает колличество секунд если симуляция запущена
+    uptime_tmr = millis();
+    ++sec_count;
+  } else if (this_stop_flag) sec_count = 0;                //иначе обнуляет
+  uint8_t min_count = sec_count / 60;
+  uint8_t this_hour = sec_count / 3600;
   if (this_hour < 10) lcd.print(0);
   lcd.print(this_hour);
   lcd.print(":");
+  uint8_t this_min = min_count % 60;
   if (this_min < 10) lcd.print(0);
   lcd.print(this_min);
   lcd.print(":");
-  byte this_sec = sec % 60;
+  uint8_t this_sec = sec_count % 60;
   if (this_sec < 10) lcd.print(0);
   lcd.print(this_sec);
 }
 
-void print_names(int names_num) {             //функция посимвольно собирает переданную строку из постоянной памяти
-  char buff[20];                              //в буфер
+void timer(bool this_stop_flag) {
+  static uint32_t uptime_tmr;
+  static uint16_t sec_count = 1200;
+  if (!this_stop_flag && sec_count != 0 && millis() - uptime_tmr >= 1000) {
+    uptime_tmr = millis();
+    --sec_count;
+  }
+  uint8_t min_count = sec_count / 60;
+  uint8_t this_hour = sec_count / 3600;
+  if (this_hour < 10) lcd.print(0);
+  lcd.print(this_hour);
+  lcd.print(":");
+  uint8_t this_min = min_count % 60;
+  if (this_min < 10) lcd.print(0);
+  lcd.print(this_min);
+  lcd.print(":");
+  uint8_t this_sec = sec_count % 60;
+  if (this_sec < 10) lcd.print(0);
+  lcd.print(this_sec);
+}
+
+void print_names(int names_num) {
+  char buff[20];
   uint16_t ptr = pgm_read_word(names_num);
   uint8_t i = 0;
   do {
     buff[i] = (char)(pgm_read_byte(ptr++));
-  } while (buff[i++] != NULL);                //пока не дойдет до символа NULL
-  lcd.print(buff);                            //и выводит на дисплей
+  } while (buff[i++] != NULL);
+  lcd.print(buff);
 }
