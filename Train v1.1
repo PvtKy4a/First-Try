@@ -87,10 +87,10 @@ void loop() {
   }
 
   static uint32_t upd_tmr;
-  if (millis() - upd_tmr >= 50) {    //вывод информации на дисплей построчно 20 раз в секунду
+  static uint8_t column = 1;
+  if (millis() - upd_tmr >= 100) {    //вывод информации на дисплей построчно
     upd_tmr = millis();
     static bool print_names_flag = true;
-    static uint8_t column = 1;
     lcd.setCursor(column, 0);
     if (print_names_flag) print_names(&names[0]);       //"State"
     static uint8_t pre_upd_countr = 1;
@@ -108,26 +108,31 @@ void loop() {
     if (print_names_flag) lcd.print(F(" sec"));         //"sec"
     lcd.setCursor(column, 2);
     if (print_names_flag) print_names(&names[2]);       //"Uptime"
-    static uint32_t uptime_tmr;
-    static uint16_t uptime_sec_count = 0;
-    if (millis() - uptime_tmr >= 1000) {
-      uptime_tmr = millis();
-      if (!stop_flag) ++uptime_sec_count;
-     //  uptime(uptime_sec_count);
-    } else if (stop_flag) uptime_sec_count = 0;
     lcd.setCursor(column, 3);
     if (print_names_flag) print_names(&names[3]);       //"Timer"
-    static uint32_t timer_tmr;
-    static uint16_t timer_sec_count = 3600;
-    if (millis() - timer_tmr >= 1000) {
-      timer_tmr = millis();
-      if (!stop_flag) --timer_sec_count;
-     // timer(timer_sec_count);
-    }
     if (print_names_flag) {
       print_names_flag = false;
       column = 9;
     }
+  }
+  static uint32_t uptime_tmr;
+  static uint16_t uptime_sec_count = 0;
+  if (millis() - uptime_tmr >= 1000) {
+    uptime_tmr = millis();
+    if (!stop_flag) ++uptime_sec_count;
+    lcd.setCursor(9, 2);
+    uptime(uptime_sec_count);
+  } else if (stop_flag) uptime_sec_count = 0;
+  
+  static bool timer_start = false;
+  static uint32_t timer_tmr;
+  static uint16_t timer_sec_count = 3600;
+  if (millis() - timer_tmr >= 1000) {
+    timer_tmr = millis();
+    if (timer_start) --timer_sec_count;
+    lcd.setCursor(9, 3);
+    timer(timer_sec_count);
+    lcd.print(timer_start ? F("  on") : F(" off"));
   }
 
   static uint8_t cursor_string = 0;
@@ -232,35 +237,21 @@ void loop() {
 void uptime(uint16_t sec_count) {
   uint8_t min_count = sec_count / 60;
   uint8_t this_hour = sec_count / 3600;
-  if (sec_count > 3599) {
-    if (this_hour < 10) lcd.print(0);
-    lcd.print(this_hour);
-    lcd.print(":");
-  }
-  uint8_t this_min = min_count % 60;
-  if (sec_count > 59) {
-    if (this_min < 10) lcd.print(0);
-    lcd.print(this_min);
-    lcd.print(":");
-  }
-  uint8_t this_sec = sec_count % 60;
-  if (this_sec < 10) lcd.print(0);
-  lcd.print(this_sec);
-}
-
-void timer(uint16_t sec_count) {
-  uint8_t min_count = sec_count / 60;
-  uint8_t this_hour = sec_count / 3600;
-  if (this_hour < 10) lcd.print(0);
   lcd.print(this_hour);
   lcd.print(":");
   uint8_t this_min = min_count % 60;
   if (this_min < 10) lcd.print(0);
   lcd.print(this_min);
+}
+
+void timer(uint16_t sec_count) {
+  uint8_t min_count = sec_count / 60;
+  uint8_t this_hour = sec_count / 3600;
+  lcd.print(this_hour);
   lcd.print(":");
-  uint8_t this_sec = sec_count % 60;
-  if (this_sec < 10) lcd.print(0);
-  lcd.print(this_sec);
+  uint8_t this_min = min_count % 60;
+  if (this_min < 10) lcd.print(0);
+  lcd.print(this_min);
 }
 
 void print_names(int names_num) {
