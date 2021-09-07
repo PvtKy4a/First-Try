@@ -1,9 +1,9 @@
 #include <EncButton.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-
 EncButton<EB_TICK, 2, 3, 4> enc(INPUT);
 EncButton<EB_TICK, 12> btn(INPUT_PULLUP);
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x3f, 20, 4);
 
 #define sp7 6
@@ -20,8 +20,6 @@ const char ti[] PROGMEM = "Timer:  ";
 const char* const names[] PROGMEM = {st, pe, le, ti};    //массив ссылок на эти строки
 
 void print_names(int names_num);       //функция выводит строки меню
-void uptime(bool this_stop_flag);      //функция времени работы
-void timer(bool this_stop_flag);       //функция таймера
 
 void setup() {
 
@@ -42,16 +40,6 @@ void loop() {
   enc.tick();   //опрос энкодера
   btn.tick();   //опрос кнопки
 
-  static uint32_t period = 30;
-  if (enc.isLeft()) {
-    if (enc.isFast()) period = constrain(period - 5, 15, 60);   //если энкодер быстро влево, то уменьшить период на 5 в пределах от 15 до 60
-    else period = constrain(period - 1, 15, 60);                //если энкодер влево, то уменьшить период на 1 в пределах от 15 до 60
-  }
-  if (enc.isRight()) {
-    if (enc.isFast()) period = constrain(period + 5, 15, 60);   //если энкодер быстро вправо, то увеличть период на 5 в пределах от 15 до 60
-    else period = constrain(period + 1, 15, 60);                //если энкодер вправо, то увеличть период на 1 в пределах от 15 до 60
-  }
-
   static uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};              //массив номеров точек
   static uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
   static bool stop_flag = true;   //"стоп" флаг, включает и выключает симуляцию поезда
@@ -64,6 +52,7 @@ void loop() {
       for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);    //освободить все точки
     } else start_flag = true;     //иначе поднять "старт" флаг
   }
+  static uint32_t period = 30;
   if (!stop_flag) {               //если "стоп" флаг опущен, включить симуляцию поезда
     static bool state_flag;       //флаг состояний
     static uint8_t countr;        //счетчик
@@ -119,46 +108,147 @@ void loop() {
     if (print_names_flag) lcd.print(F(" sec"));         //"sec"
     lcd.setCursor(column, 2);
     if (print_names_flag) print_names(&names[2]);       //"Uptime"
-  //  uptime(stop_flag);                                  //время работы
+    static uint32_t uptime_tmr;
+    static uint16_t uptime_sec_count = 0;
+    if (millis() - uptime_tmr >= 1000) {
+      uptime_tmr = millis();
+      if (!stop_flag) ++uptime_sec_count;
+     //  uptime(uptime_sec_count);
+    } else if (stop_flag) uptime_sec_count = 0;
     lcd.setCursor(column, 3);
     if (print_names_flag) print_names(&names[3]);       //"Timer"
-  //  timer(stop_flag);
+    static uint32_t timer_tmr;
+    static uint16_t timer_sec_count = 3600;
+    if (millis() - timer_tmr >= 1000) {
+      timer_tmr = millis();
+      if (!stop_flag) --timer_sec_count;
+     // timer(timer_sec_count);
+    }
     if (print_names_flag) {
       print_names_flag = false;
       column = 9;
     }
   }
 
+  static uint8_t cursor_string = 0;
+  static uint8_t cursor_column = 0;
+  static bool main_menu = true;
+  if (main_menu) {
+    if (enc.isLeft()) cursor_string = constrain(cursor_string - 1, 0, 3);
+    if (enc.isRight()) cursor_string = constrain(cursor_string + 1, 0, 3);
+    lcd.setCursor(cursor_column, cursor_string);
+    lcd.write(126);
+    static uint8_t pre_cursor_string = 0;
+    if (pre_cursor_string != cursor_string) {
+      lcd.setCursor (cursor_column, pre_cursor_string);
+      lcd.print(" ");
+      pre_cursor_string = cursor_string;
+    }
+  }
+  static bool menu_item_enter = true;
+  static bool menu_item_available = false;
+  static uint8_t sp_num_count;
+  switch (cursor_string) {
+    case (0): {
+        if (menu_item_enter && enc.isClick()) {
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.print(" ");
+          lcd.cursor();
+          lcd.blink();
+          cursor_column = 9;
+          sp_num_count = 0;
+          main_menu = false;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+        if (menu_item_available) {
+          lcd.setCursor(cursor_column, cursor_string);
+          if (enc.isLeft()) {
+            cursor_column = constrain(cursor_column - 2, 9, 17);
+            sp_num_count = constrain(sp_num_count - 1, 0, 4);
+          }
+          if (enc.isRight()) {
+            cursor_column = constrain(cursor_column + 2, 9, 17);
+            sp_num_count = constrain(sp_num_count + 1, 0, 4);
+          }
+          if (enc.isClick()) {
+            digitalWrite((sp_num[sp_num_count]), !digitalRead(sp_num[sp_num_count]));
+            ++upd_countr;
+          }
+          if (enc.isHolded()) {
+            lcd.noCursor();
+            lcd.noBlink();
+            cursor_column = 0;
+            main_menu = true;
+            menu_item_enter = true;
+            menu_item_available = false;
+          }
+        }
+      }
+      break;
+    case (1): {
+        if (menu_item_enter && enc.isClick()) {
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.print(" ");
+          cursor_column = 8;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          main_menu = false;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+        if (menu_item_available) {
+          if (enc.isLeft()) {
+            if (enc.isFast()) period = constrain(period - 5, 15, 60);   //если энкодер быстро влево, то уменьшить период на 5 в пределах от 15 до 60
+            else period = constrain(period - 1, 15, 60);                //если энкодер влево, то уменьшить период на 1 в пределах от 15 до 60
+          }
+          if (enc.isRight()) {
+            if (enc.isFast()) period = constrain(period + 5, 15, 60);   //если энкодер быстро вправо, то увеличть период на 5 в пределах от 15 до 60
+            else period = constrain(period + 1, 15, 60);                //если энкодер вправо, то увеличть период на 1 в пределах от 15 до 60
+          }
+        }
+        if (enc.isHolded()) {
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.print(" ");
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
+      }
+      break;
+    case (2): {
+
+      }
+      break;
+    case (3): {
+
+      }
+      break;
+  }
+
 }
 
-void uptime(bool this_stop_flag) {
-  static uint32_t uptime_tmr;
-  static uint16_t sec_count;
-  if (!this_stop_flag && millis() - uptime_tmr >= 1000) {  //считает колличество секунд если симуляция запущена
-    uptime_tmr = millis();
-    ++sec_count;
-  } else if (this_stop_flag) sec_count = 0;                //иначе обнуляет
+void uptime(uint16_t sec_count) {
   uint8_t min_count = sec_count / 60;
   uint8_t this_hour = sec_count / 3600;
-  if (this_hour < 10) lcd.print(0);
-  lcd.print(this_hour);
-  lcd.print(":");
+  if (sec_count > 3599) {
+    if (this_hour < 10) lcd.print(0);
+    lcd.print(this_hour);
+    lcd.print(":");
+  }
   uint8_t this_min = min_count % 60;
-  if (this_min < 10) lcd.print(0);
-  lcd.print(this_min);
-  lcd.print(":");
+  if (sec_count > 59) {
+    if (this_min < 10) lcd.print(0);
+    lcd.print(this_min);
+    lcd.print(":");
+  }
   uint8_t this_sec = sec_count % 60;
   if (this_sec < 10) lcd.print(0);
   lcd.print(this_sec);
 }
 
-void timer(bool this_stop_flag) {
-  static uint32_t uptime_tmr;
-  static uint16_t sec_count = 1200;
-  if (!this_stop_flag && sec_count != 0 && millis() - uptime_tmr >= 1000) {
-    uptime_tmr = millis();
-    --sec_count;
-  }
+void timer(uint16_t sec_count) {
   uint8_t min_count = sec_count / 60;
   uint8_t this_hour = sec_count / 3600;
   if (this_hour < 10) lcd.print(0);
