@@ -123,7 +123,6 @@ void loop() {
     lcd.setCursor(9, 2);
     uptime(uptime_sec_count);
   } else if (stop_flag) uptime_sec_count = 0;
-  
   static bool timer_start = false;
   static uint32_t timer_tmr;
   static uint16_t timer_sec_count = 3600;
@@ -132,7 +131,9 @@ void loop() {
     if (timer_start) --timer_sec_count;
     lcd.setCursor(9, 3);
     timer(timer_sec_count);
-    lcd.print(timer_start ? F("  on") : F(" off"));
+    lcd.setCursor(14, 3);
+    lcd.print(timer_start ? F("on") : F("off"));
+    if (timer_start) lcd.print(" ");
   }
 
   static uint8_t cursor_string = 0;
@@ -143,12 +144,18 @@ void loop() {
     if (enc.isRight()) cursor_string = constrain(cursor_string + 1, 0, 3);
     lcd.setCursor(cursor_column, cursor_string);
     lcd.write(126);
-    static uint8_t pre_cursor_string = 0;
-    if (pre_cursor_string != cursor_string) {
-      lcd.setCursor (cursor_column, pre_cursor_string);
-      lcd.print(" ");
-      pre_cursor_string = cursor_string;
-    }
+  }
+  static uint8_t pre_cursor_string = 0;
+  if (pre_cursor_string != cursor_string) {
+    lcd.setCursor (cursor_column, pre_cursor_string);
+    lcd.print(" ");
+    pre_cursor_string = cursor_string;
+  }
+  static uint8_t pre_cursor_column = 0;
+  if (pre_cursor_column != cursor_column) {
+    lcd.setCursor (pre_cursor_column, cursor_string);
+    lcd.print(" ");
+    pre_cursor_column = cursor_column;
   }
   static bool menu_item_enter = true;
   static bool menu_item_available = false;
@@ -156,11 +163,7 @@ void loop() {
   switch (cursor_string) {
     case (0): {
         if (menu_item_enter && enc.isClick()) {
-          lcd.setCursor(cursor_column, cursor_string);
-          lcd.print(" ");
-          lcd.cursor();
-          lcd.blink();
-          cursor_column = 9;
+          cursor_column = 8;
           sp_num_count = 0;
           main_menu = false;
           menu_item_enter = false;
@@ -168,12 +171,13 @@ void loop() {
         }
         if (menu_item_available) {
           lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           if (enc.isLeft()) {
-            cursor_column = constrain(cursor_column - 2, 9, 17);
+            cursor_column = constrain(cursor_column - 2, 8, 16);
             sp_num_count = constrain(sp_num_count - 1, 0, 4);
           }
           if (enc.isRight()) {
-            cursor_column = constrain(cursor_column + 2, 9, 17);
+            cursor_column = constrain(cursor_column + 2, 8, 16);
             sp_num_count = constrain(sp_num_count + 1, 0, 4);
           }
           if (enc.isClick()) {
@@ -181,8 +185,6 @@ void loop() {
             ++upd_countr;
           }
           if (enc.isHolded()) {
-            lcd.noCursor();
-            lcd.noBlink();
             cursor_column = 0;
             main_menu = true;
             menu_item_enter = true;
@@ -193,8 +195,6 @@ void loop() {
       break;
     case (1): {
         if (menu_item_enter && enc.isClick()) {
-          lcd.setCursor(cursor_column, cursor_string);
-          lcd.print(" ");
           cursor_column = 8;
           lcd.setCursor(cursor_column, cursor_string);
           lcd.write(126);
@@ -204,17 +204,15 @@ void loop() {
         }
         if (menu_item_available) {
           if (enc.isLeft()) {
-            if (enc.isFast()) period = constrain(period - 5, 15, 60);   //если энкодер быстро влево, то уменьшить период на 5 в пределах от 15 до 60
-            else period = constrain(period - 1, 15, 60);                //если энкодер влево, то уменьшить период на 1 в пределах от 15 до 60
+            if (enc.isFast()) period = constrain(period - 5, 15, 60);
+            else period = constrain(period - 1, 15, 60);
           }
           if (enc.isRight()) {
-            if (enc.isFast()) period = constrain(period + 5, 15, 60);   //если энкодер быстро вправо, то увеличть период на 5 в пределах от 15 до 60
-            else period = constrain(period + 1, 15, 60);                //если энкодер вправо, то увеличть период на 1 в пределах от 15 до 60
+            if (enc.isFast()) period = constrain(period + 5, 15, 60);
+            else period = constrain(period + 1, 15, 60);
           }
         }
         if (enc.isHolded()) {
-          lcd.setCursor(cursor_column, cursor_string);
-          lcd.print(" ");
           cursor_column = 0;
           main_menu = true;
           menu_item_enter = true;
@@ -227,7 +225,34 @@ void loop() {
       }
       break;
     case (3): {
-
+        if (menu_item_enter && enc.isClick()) {
+          cursor_column = 8;
+          main_menu = false;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+        if (menu_item_available) {
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          if (enc.isLeft()) cursor_column = 8;
+          if (enc.isRight()) cursor_column = 13;
+          switch (cursor_column) {
+            case (8): {
+                
+              }
+              break;
+            case (13): {
+                if (enc.isClick()) timer_start = !timer_start;
+              }
+              break;
+          }
+        }
+        if (enc.isHolded()) {
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
       }
       break;
   }
