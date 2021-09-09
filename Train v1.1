@@ -234,11 +234,17 @@ void loop() {
         if (menu_item_available) {
           lcd.setCursor(cursor_column, cursor_string);
           lcd.write(126);
-          if (enc.isLeft()) cursor_column = 8;
-          if (enc.isRight()) cursor_column = 13;
+          static bool menu_sub_item_enter = false;
+          if (!menu_sub_item_enter) {
+            if (enc.isLeft()) cursor_column = 8;
+            if (enc.isRight()) cursor_column = 13;
+          }
           switch (cursor_column) {
             case (8): {
-                
+                if (enc.isClick()) {
+                  menu_sub_item_enter = true;
+                  
+                }
               }
               break;
             case (13): {
