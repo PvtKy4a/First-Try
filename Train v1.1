@@ -107,7 +107,11 @@ void loop() {
     lcd.print(period);                                  //значение периода
     if (print_names_flag) lcd.print(F(" sec"));         //"sec"
     lcd.setCursor(column, 2);
-    if (print_names_flag) print_names(&names[2]);       //"Uptime"
+    if (print_names_flag) {
+      print_names(&names[2]);       //"Uptime"
+      lcd.setCursor(13, 2);
+      lcd.print(F(" reset"));
+    }
     lcd.setCursor(column, 3);
     if (print_names_flag) print_names(&names[3]);       //"Timer"
     if (print_names_flag) {
@@ -115,25 +119,25 @@ void loop() {
       column = 9;
     }
   }
-  static uint32_t uptime_tmr;
+  static uint32_t time_tmr;
   static uint16_t uptime_sec_count = 0;
-  if (millis() - uptime_tmr >= 1000) {
-    uptime_tmr = millis();
+  static uint16_t timer_sec_count = 3600;
+  static bool timer_start = false;
+  if (millis() - time_tmr >= 1000) {
+    time_tmr = millis();
     if (!stop_flag) ++uptime_sec_count;
+    if (timer_start) {
+      --timer_sec_count;
+      if (timer_sec_count == 0) {
+        stop_flag = true;
+        timer_start = false;
+      }
+    }
     lcd.setCursor(9, 2);
     uptime(uptime_sec_count);
-  } else if (stop_flag) uptime_sec_count = 0;
-  static bool timer_start = false;
-  static uint32_t timer_tmr;
-  static uint16_t timer_sec_count = 3600;
-  if (millis() - timer_tmr >= 1000) {
-    timer_tmr = millis();
-    if (timer_start) --timer_sec_count;
     lcd.setCursor(9, 3);
     timer(timer_sec_count);
-    lcd.setCursor(14, 3);
-    lcd.print(timer_start ? F("on") : F("off"));
-    if (timer_start) lcd.print(" ");
+    lcd.print(timer_start ? F("  on") : F(" off"));
   }
 
   static uint8_t cursor_string = 0;
@@ -159,6 +163,7 @@ void loop() {
   }
   static bool menu_item_enter = true;
   static bool menu_item_available = false;
+  static bool menu_sub_item_enter = false;
   static uint8_t sp_num_count;
   switch (cursor_string) {
     case (0): {
@@ -221,7 +226,23 @@ void loop() {
       }
       break;
     case (2): {
-
+        if (menu_item_enter && enc.isClick()) {
+          cursor_column = 13;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          main_menu = false;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+        if (menu_item_available) {
+          if (enc.isClick()) uptime_sec_count = 0;
+        }
+        if (enc.isHolded()) {
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
       }
       break;
     case (3): {
@@ -234,16 +255,25 @@ void loop() {
         if (menu_item_available) {
           lcd.setCursor(cursor_column, cursor_string);
           lcd.write(126);
-          static bool menu_sub_item_enter = false;
           if (!menu_sub_item_enter) {
             if (enc.isLeft()) cursor_column = 8;
             if (enc.isRight()) cursor_column = 13;
           }
           switch (cursor_column) {
             case (8): {
-                if (enc.isClick()) {
+                if (!menu_sub_item_enter && enc.isClick()) {
                   menu_sub_item_enter = true;
-                  
+                }
+                if (menu_sub_item_enter) {
+                  if (enc.isLeft()) {
+                    if (enc.isFast()) timer_sec_count = constrain(timer_sec_count - 3600, 1, 35940);
+                    else timer_sec_count = constrain(timer_sec_count - 60, 1, 35940);
+                  }
+                  if (enc.isRight()) {
+                    if (enc.isFast()) timer_sec_count = constrain(timer_sec_count + 3600, 1, 35940);
+                    else timer_sec_count = constrain(timer_sec_count + 60, 1, 35940);
+                  }
+                  if (menu_sub_item_enter && enc.isHolded()) menu_sub_item_enter = false;
                 }
               }
               break;
@@ -253,7 +283,7 @@ void loop() {
               break;
           }
         }
-        if (enc.isHolded()) {
+        if (!menu_sub_item_enter && enc.isHolded()) {
           cursor_column = 0;
           main_menu = true;
           menu_item_enter = true;
