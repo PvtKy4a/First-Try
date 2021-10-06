@@ -130,6 +130,8 @@ void loop() {
       --timer_sec_count;
       if (timer_sec_count == 0) {
         stop_flag = true;
+        ++upd_countr;
+        for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);
         timer_start = false;
       }
     }
