@@ -1,0 +1,339 @@
+#include <EncButton.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+EncButton<EB_TICK, 2, 3, 4> enc(INPUT);
+EncButton<EB_TICK, 12> btn(INPUT_PULLUP);
+
+LiquidCrystal_I2C lcd(0x3f, 20, 4);
+
+#define sp7 5
+#define sp5 6
+#define sp3 7
+#define sp1 8
+#define pre_in 9
+#define led 10
+
+const char st[] PROGMEM = "State:  ";         //строки меню
+const char pe[] PROGMEM = "Period: ";
+const char le[] PROGMEM = "Uptime: ";
+const char ti[] PROGMEM = "Timer:  ";
+const char* const names[] PROGMEM = {st, pe, le, ti};    //массив ссылок на эти строки
+
+uint8_t sp_num [] {sp7, sp5, sp3, sp1, pre_in};              //массив номеров точек
+uint8_t sp_num_size = sizeof(sp_num) / sizeof(sp_num[0]);    //его размер
+
+bool state_upd = true;             //обновление состояния точек на дисплее
+uint16_t period = 30000;           //период смены состояний
+bool sim_start = false;            //старт симуляции
+uint32_t uptime_tmr;               //таймер аптайма
+uint16_t uptime_min = 0;           //счетчик минут аптайма
+uint32_t timer_tmr;                //таймер таймера лол
+uint16_t timer_min = 60;           //счетчик минут таймера
+bool timer_start = false;          //старт таймера
+bool colon_state = false;
+
+void setup() {
+
+  pinMode(sp7, OUTPUT);
+  pinMode(sp5, OUTPUT);
+  pinMode(sp3, OUTPUT);
+  pinMode(sp1, OUTPUT);
+  pinMode(pre_in, OUTPUT);
+  pinMode(led, OUTPUT);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.home();
+  scr_upd();
+
+}
+
+void loop() {
+
+  sim();
+  menu_control();
+  colon_blink();
+
+}
+
+void sim() {
+  btn.tick();
+  static uint32_t _tmr;                    //таймер симуляции
+  if (btn.click()) {
+    sim_start = !sim_start;                //изменить состояние симуляции
+    if (sim_start == false) {              //если остановлена
+      for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);    //освободить все точки
+      state_upd = true;                    //обновить состояния на дисплее
+      scr_upd();
+    } else _tmr = millis();                //иначе взвести таймер
+    uptime_tmr = millis();
+  }
+  static bool _state;                      //флаг состояний симуляции
+  static bool _start;                      //флаг старта после нажатия кнопки
+  static uint8_t _counter;                 //счетчик симуляции
+  if (sim_start == true) {
+    if (_start == true) {
+      digitalWrite(sp_num[0], HIGH);
+      _counter = 1;
+      _state = false;
+      state_upd = true;
+      scr_upd();
+      _start = false;
+    }
+    if (millis() - _tmr >= period) {
+      _tmr = millis();
+      switch (_state) {
+        case (false): {
+            digitalWrite(sp_num[_counter], HIGH);
+            _state = true;
+          }
+          break;
+        case (true): {
+            digitalWrite(sp_num[_counter - 1], LOW);
+            if (_counter == 0 && digitalRead(sp_num[sp_num_size - 1]) == true) digitalWrite(sp_num[sp_num_size - 1], LOW);      //если счетчик в начальном состоянии, а последняя точка нет, выключить ее
+            ++_counter;
+            if (_counter == sp_num_size) _counter = 0;       //если счетчик дошел до конца массива, вернуть начальное состояние
+            _state = false;
+          }
+          break;
+      }
+      state_upd = true;
+      scr_upd();
+    }
+  } else if (_start == false) _start = true;
+}
+
+void scr_upd() {
+  static bool print_names_flag = true;
+  static uint8_t _column = 1;
+  uint8_t print_period = period / 1000;
+  lcd.setCursor(_column, 0);
+  if (print_names_flag) print_names(&names[0]);       //"State"
+  if (state_upd == true) {                            //состояние точек обновляется по факту изменения
+    state_upd = false;
+    for (uint8_t i = 0; i < sp_num_size; ++i) {
+      bool sp_state = (digitalRead(sp_num[i]));
+      lcd.print(sp_state);
+      lcd.print(" ");
+    }
+  }
+  lcd.setCursor(_column, 1);
+  if (print_names_flag) print_names(&names[1]);       //"Period"
+  if (print_period < 10) lcd.print(0);
+  lcd.print(print_period);                            //значение периода
+  if (print_names_flag) lcd.print(F(" sec"));         //"sec"
+  lcd.setCursor(_column, 2);
+  if (print_names_flag) print_names(&names[2]);       //"Uptime"
+  uptime();
+  lcd.setCursor(_column, 3);
+  if (print_names_flag) print_names(&names[3]);       //"Timer"
+  timer();
+  lcd.print(timer_start ? F(" on ") : F(" off"));
+  if (print_names_flag == true && _column == 1) {
+    print_names_flag = false;
+    _column = 9;
+  }
+}
+
+void menu_control() {
+  enc.tick();
+  static uint8_t cursor_string = 0;
+  static uint8_t cursor_column = 0;
+  static bool main_menu = true;
+  if (main_menu == true) {
+    if (enc.left()) cursor_string = constrain(cursor_string - 1, 0, 3);
+    if (enc.right()) cursor_string = constrain(cursor_string + 1, 0, 3);
+    lcd.setCursor(cursor_column, cursor_string);
+    lcd.write(126);
+  }
+  static uint8_t pre_cursor_string = 0;
+  if (pre_cursor_string != cursor_string) {
+    lcd.setCursor (cursor_column, pre_cursor_string);
+    lcd.print(" ");
+    pre_cursor_string = cursor_string;
+  }
+  static uint8_t pre_cursor_column = 0;
+  if (pre_cursor_column != cursor_column) {
+    lcd.setCursor (pre_cursor_column, cursor_string);
+    lcd.print(" ");
+    pre_cursor_column = cursor_column;
+  }
+  static bool menu_item_available = true;
+  static bool menu_item_enter = false;
+  static bool menu_sub_item_enter = false;
+  switch (cursor_string) {
+    case (0): {
+        if (menu_item_available == true && enc.click()) {
+          cursor_column = 8;
+          main_menu = false;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
+        if (menu_item_enter == true) {
+          if (enc.left()) cursor_column = constrain(cursor_column - 2, 8, 16);
+          if (enc.right()) cursor_column = constrain(cursor_column + 2, 8, 16);
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          if (enc.click()) {
+            uint8_t _num = map(cursor_column, 8, 16, 0, 4);
+            digitalWrite((sp_num[_num]), !digitalRead(sp_num[_num]));
+            state_upd = true;
+            scr_upd();
+          }
+          if (enc.held()) {
+            cursor_column = 0;
+            main_menu = true;
+            menu_item_enter = false;
+            menu_item_available = true;
+          }
+        }
+      }
+      break;
+    case (1): {
+        if (menu_item_available == true && enc.click()) {
+          cursor_column = 8;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          main_menu = false;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
+        if (menu_item_enter == true) {
+          if (enc.turn()) {
+            if (enc.left()) period = constrain(period - 1000, 1000, 60000);
+            if (enc.right()) period = constrain(period + 1000, 1000, 60000);
+            scr_upd();
+          }
+        }
+        if (enc.held()) {
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+      }
+      break;
+    case (2): {
+        if (menu_item_available == true && enc.click()) {
+          cursor_column = 13;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
+          main_menu = false;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
+        if (menu_item_enter == true) {
+
+        }
+        if (enc.held()) {
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+      }
+      break;
+    case (3): {
+        if (menu_item_available == true && enc.click()) {
+          cursor_column = 8;
+          main_menu = false;
+          menu_item_enter = true;
+          menu_item_available = false;
+        }
+        if (menu_item_enter == true) {
+          if (menu_sub_item_enter == false) {
+            if (enc.left()) cursor_column = 8;
+            if (enc.right()) cursor_column = 13;
+            lcd.setCursor(cursor_column, cursor_string);
+            lcd.write(126);
+          }
+          switch (cursor_column) {
+            case (8): {
+                if (menu_sub_item_enter == false && enc.click()) {
+                  lcd.setCursor(cursor_column, cursor_string);
+                  lcd.print(" ");
+                  menu_sub_item_enter = true;
+                }
+                if (menu_sub_item_enter == true) {
+                  if (enc.turn()) {
+                    if (enc.left()) timer_min = constrain(timer_min - 10, 10, 540);
+                    if (enc.right()) timer_min = constrain(timer_min + 10, 10, 540);
+                    scr_upd();
+                  }
+                  if (menu_sub_item_enter == true && enc.held()) {
+                    menu_sub_item_enter = false;
+                    menu_item_enter = true;
+                  }
+                }
+              }
+              break;
+            case (13): {
+                if (enc.click()) {
+                  timer_start = !timer_start;
+                  timer_tmr = millis();
+                  scr_upd();
+                }
+              }
+              break;
+          }
+        }
+        if (menu_sub_item_enter == false && enc.held()) {
+          cursor_column = 0;
+          main_menu = true;
+          menu_item_enter = false;
+          menu_item_available = true;
+        }
+      }
+      break;
+  }
+}
+
+void colon_blink() {
+  static uint32_t _tmr;
+  if (millis() - _tmr >= 500) {
+    _tmr = millis();
+    colon_state = !colon_state;
+    if (sim_start == true || timer_start == true) scr_upd();
+  }
+  if (timer_start == true) {
+    if (millis() - timer_tmr >= timer_min * 60000ul) {
+      sim_start = false;
+      timer_start = false;
+      for (uint8_t i = 0; i < sp_num_size; ++i) digitalWrite(sp_num[i], LOW);
+      state_upd = true;
+      scr_upd();
+    }
+  }
+}
+
+void uptime() {
+  uint16_t _min = uptime_min + (millis() - uptime_tmr) / 60000ul;
+  uint8_t this_hour = (sim_start ? _min : uptime_min) / 60;
+  lcd.print(this_hour);
+  if (sim_start == true) lcd.print(colon_state ? (" ") : (":")); else lcd.print(":");
+  uint8_t this_min = (sim_start ? _min : uptime_min) % 60;
+  if (this_min < 10) lcd.print(0);
+  lcd.print(this_min);
+}
+
+void timer() {
+  uint16_t _min = timer_min - (millis() - timer_tmr) / 60000ul;
+  uint8_t this_hour = (timer_start ? _min : timer_min) / 60;
+  lcd.print(this_hour);
+  if (timer_start == true) lcd.print(colon_state ? (" ") : (":")); else lcd.print(":");
+  uint8_t this_min = (timer_start ? _min : timer_min) % 60;
+  if (this_min < 10) lcd.print(0);
+  lcd.print(this_min);
+}
+
+void print_names(int names_num) {
+  char buff[20];
+  uint16_t ptr = pgm_read_word(names_num);
+  uint8_t i = 0;
+  do {
+    buff[i] = (char)(pgm_read_byte(ptr++));
+  } while (buff[i++] != NULL);
+  lcd.print(buff);
+}
