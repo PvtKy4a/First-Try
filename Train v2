@@ -46,6 +46,7 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.home();
+  lcd.write(126);
   scr_upd();
 
 }
@@ -79,7 +80,6 @@ void sim() {
       _counter = 1;
       _state = false;
       state_upd = true;
-      scr_upd();
       _start = false;
     }
     if (millis() - _tmr >= period) {
@@ -100,7 +100,6 @@ void sim() {
           break;
       }
       state_upd = true;
-      scr_upd();
     }
   } else if (_start == false) _start = true;
 }
@@ -112,12 +111,12 @@ void scr_upd() {
   lcd.setCursor(_column, 0);
   if (print_names_flag) print_names(&names[0]);       //"State"
   if (state_upd == true) {                            //состояние точек обновляется по факту изменения
-    state_upd = false;
     for (uint8_t i = 0; i < sp_num_size; ++i) {
       bool sp_state = (digitalRead(sp_num[i]));
       lcd.print(sp_state);
       lcd.print(" ");
     }
+    state_upd = false;
   }
   lcd.setCursor(_column, 1);
   if (print_names_flag) print_names(&names[1]);       //"Period"
@@ -143,10 +142,12 @@ void menu_control() {
   static uint8_t cursor_column = 0;
   static bool main_menu = true;
   if (main_menu == true) {
-    if (enc.left()) cursor_string = constrain(cursor_string - 1, 0, 3);
-    if (enc.right()) cursor_string = constrain(cursor_string + 1, 0, 3);
-    lcd.setCursor(cursor_column, cursor_string);
-    lcd.write(126);
+    if (enc.turn()) {
+      if (enc.left() && cursor_string > 0) cursor_string -= 1;
+      if (enc.right() && cursor_string < 3) cursor_string += 1;
+      lcd.setCursor(cursor_column, cursor_string);
+      lcd.write(126);
+    }
   }
   static uint8_t pre_cursor_string = 0;
   if (pre_cursor_string != cursor_string) {
@@ -167,13 +168,15 @@ void menu_control() {
     case (0): {
         if (menu_item_available == true && enc.click()) {
           cursor_column = 8;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           main_menu = false;
           menu_item_enter = true;
           menu_item_available = false;
         }
         if (menu_item_enter == true) {
-          if (enc.left()) cursor_column = constrain(cursor_column - 2, 8, 16);
-          if (enc.right()) cursor_column = constrain(cursor_column + 2, 8, 16);
+          if (enc.left() && cursor_column > 8) cursor_column -= 2;
+          if (enc.right() && cursor_column < 16) cursor_column += 2;
           lcd.setCursor(cursor_column, cursor_string);
           lcd.write(126);
           if (enc.click()) {
@@ -184,6 +187,8 @@ void menu_control() {
           }
           if (enc.held()) {
             cursor_column = 0;
+            lcd.setCursor(cursor_column, cursor_string);
+            lcd.write(126);
             main_menu = true;
             menu_item_enter = false;
             menu_item_available = true;
@@ -202,13 +207,15 @@ void menu_control() {
         }
         if (menu_item_enter == true) {
           if (enc.turn()) {
-            if (enc.left()) period = constrain(period - 1000, 1000, 60000);
-            if (enc.right()) period = constrain(period + 1000, 1000, 60000);
+            if (enc.left() && period > 1000) period -= 1000;
+            if (enc.right() && period < 60000) period += 1000;
             scr_upd();
           }
         }
         if (enc.held()) {
           cursor_column = 0;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           main_menu = true;
           menu_item_enter = false;
           menu_item_available = true;
@@ -217,7 +224,7 @@ void menu_control() {
       break;
     case (2): {
         if (menu_item_available == true && enc.click()) {
-          cursor_column = 13;
+          cursor_column = 8;
           lcd.setCursor(cursor_column, cursor_string);
           lcd.write(126);
           main_menu = false;
@@ -229,6 +236,8 @@ void menu_control() {
         }
         if (enc.held()) {
           cursor_column = 0;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           main_menu = true;
           menu_item_enter = false;
           menu_item_available = true;
@@ -238,6 +247,8 @@ void menu_control() {
     case (3): {
         if (menu_item_available == true && enc.click()) {
           cursor_column = 8;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           main_menu = false;
           menu_item_enter = true;
           menu_item_available = false;
@@ -258,11 +269,13 @@ void menu_control() {
                 }
                 if (menu_sub_item_enter == true) {
                   if (enc.turn()) {
-                    if (enc.left()) timer_min = constrain(timer_min - 10, 10, 540);
-                    if (enc.right()) timer_min = constrain(timer_min + 10, 10, 540);
+                    if (enc.left() && timer_min > 10) timer_min -= 10;
+                    if (enc.right() && timer_min < 540) timer_min += 10;
                     scr_upd();
                   }
                   if (menu_sub_item_enter == true && enc.held()) {
+                    lcd.setCursor(cursor_column, cursor_string);
+                    lcd.write(126);
                     menu_sub_item_enter = false;
                     menu_item_enter = true;
                   }
@@ -281,6 +294,8 @@ void menu_control() {
         }
         if (menu_sub_item_enter == false && enc.held()) {
           cursor_column = 0;
+          lcd.setCursor(cursor_column, cursor_string);
+          lcd.write(126);
           main_menu = true;
           menu_item_enter = false;
           menu_item_available = true;
