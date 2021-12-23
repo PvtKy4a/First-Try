@@ -1,17 +1,19 @@
-#define BIT_SET(PORTx, BIT) (PORTx |= (1 << BIT))
-#define BIT_RESET(PORTx, BIT) (PORTx &= ~(1 << BIT))
-#define BIT_CHECK(PINx, BIT) (PINx & (1 << BIT))
-#define SP7 5
-#define SP5 6
-#define SP3 7
-#define SP1 0
-#define PRE_IN 1
+#define BIT_SET(PORTx, BIT) (PORTx |= BIT)
+#define BIT_RESET(PORTx, BIT) (PORTx &= ~BIT)
+#define BIT_CHECK(PINx, BIT) (PINx & BIT)
+#define SP7 (1 << 5)
+#define SP5 (1 << 6)
+#define SP3 (1 << 7)
+#define SP1 (1 << 0)
+#define PRE_IN (1 << 1)
 #define SP7_PORT PORTD
 #define SP5_PORT PORTD
 #define SP3_PORT PORTD
 #define SP1_PORT PORTD
 #define PRE_IN_PORT PORTD
 #define PRE_IN_PORT_CHECK PIND
+#define INITIAL_STATE 0
+#define SECOND_STATE 1
 
 uint8_t btn_isClick(void);
 void IO_Init(void);
@@ -40,7 +42,7 @@ void loop() {
     if (start_flag == false)
     {
       switch_flag = false;
-      sp_number = 0;
+      sp_number = INITIAL_STATE;
     }
     period_timer = timer_ms - period;
   }
@@ -52,9 +54,9 @@ void loop() {
     {
       case (false):
         {
-          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN) == true && sp_number == 0) BIT_RESET(PRE_IN_PORT, PRE_IN);
+          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN) == true && sp_number == INITIAL_STATE) BIT_RESET(PRE_IN_PORT, PRE_IN);
           BIT_SET(sp_port_list[sp_number], sp_list[sp_number]);
-          if (sp_number < 1) ++sp_number;
+          if (sp_number < SECOND_STATE) ++sp_number;
           else switch_flag = true;
         }
         break;
@@ -62,7 +64,7 @@ void loop() {
         {
           BIT_RESET(sp_port_list[previous_sp_number], sp_list[previous_sp_number]);
           ++sp_number;
-          if (sp_number > sp_list_size) sp_number = 0;
+          if (sp_number > sp_list_size) sp_number = INITIAL_STATE;
           switch_flag = false;
         }
         break;
