@@ -1,6 +1,6 @@
 #define BIT_SET(PORTx, BIT) (PORTx |= (1 << BIT))
 #define BIT_RESET(PORTx, BIT) (PORTx &= ~(1 << BIT))
-#define CHECK_BIT(PINx, BIT) (PINx & (1 << BIT))
+#define BIT_CHECK(PINx, BIT) (PINx & (1 << BIT))
 #define SP7 5
 #define SP5 6
 #define SP3 7
@@ -52,7 +52,7 @@ void loop() {
     {
       case (false):
         {
-          if (CHECK_BIT(PRE_IN_PORT_CHECK, PRE_IN) == true && sp_number == 0) BIT_RESET(PRE_IN_PORT, PRE_IN);
+          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN) == true && sp_number == 0) BIT_RESET(PRE_IN_PORT, PRE_IN);
           BIT_SET(sp_port_list[sp_number], sp_list[sp_number]);
           if (sp_number < 1) ++sp_number;
           else switch_flag = true;
