@@ -1,0 +1,92 @@
+#define BIT_SET(PORTx, BIT) (PORTx |= (1 << BIT))
+#define BIT_RESET(PORTx, BIT) (PORTx &= ~(1 << BIT))
+#define CHECK_BIT(PINx, BIT) (PINx & (1 << BIT))
+#define SP7 5
+#define SP5 6
+#define SP3 7
+#define SP1 0
+#define PRE_IN 1
+#define SP7_PORT PORTD
+#define SP5_PORT PORTD
+#define SP3_PORT PORTD
+#define SP1_PORT PORTD
+#define PRE_IN_PORT PORTD
+#define PRE_IN_PORT_CHECK PIND
+
+uint8_t sp_list[5] = {SP7, SP5, SP3, SP1, PRE_IN};
+uint8_t sp_list_size = sizeof(sp_list) / sizeof(sp_list[0]) - 1;
+uint8_t sp_port_list[5] = {SP7_PORT, SP5_PORT, SP3_PORT, SP1_PORT, PRE_IN_PORT};
+
+void setup() {
+
+  DDRB &= ~1 << 4;
+  PORTB |= 1 << 4;
+  DDRD |= 0xE0;
+  DDRB |= 0x3;
+
+}
+
+void loop() {
+
+  uint32_t timer_ms = millis();
+  static uint32_t period_timer = 0;
+  static uint8_t switch_cnt = 0;
+  static uint16_t period = 1000;
+  static bool switch_flag = false;
+  static bool start_flag = false;
+  if (btn_isClick())
+  {
+    start_flag = !start_flag;
+    switch_flag = false;
+    switch_cnt = 0;
+    period_timer = timer_ms - period;
+  }
+  if (timer_ms - period_timer >= period && start_flag == true)
+  {
+    period_timer = timer_ms;
+    switch (switch_flag)
+    {
+      case (false):
+        {
+          if (CHECK_BIT(PRE_IN_PORT_CHECK, PRE_IN) && !switch_cnt) BIT_RESET(PRE_IN_PORT, PRE_IN);
+          BIT_SET(sp_port_list[switch_cnt], sp_list[switch_cnt]);
+          if (switch_cnt < 1) ++switch_cnt;
+          else switch_flag = true;
+        }
+        break;
+      case (true):
+        {
+          BIT_RESET(sp_port_list[switch_cnt - 1], sp_list[switch_cnt - 1]);
+          ++switch_cnt;
+          if (switch_cnt > sp_list_size) switch_cnt = 0;
+          switch_flag = false;
+        }
+        break;
+    }
+  }
+
+}
+
+uint8_t btn_isClick(void)
+{
+  uint32_t timer_ms = millis();
+  static uint32_t pressed_debounce_timer = 0;
+  static uint32_t released_debounce_timer = 0;
+  const uint8_t debounce_delay_ms = 50;
+  static bool btn_pressed = false;
+  bool _btn_isClick = false;
+  if (!(PINB & 1 << 4) && btn_pressed == false && timer_ms - pressed_debounce_timer >= debounce_delay_ms)
+  {
+    pressed_debounce_timer = timer_ms;
+    released_debounce_timer = timer_ms;
+    btn_pressed = true;
+    _btn_isClick = true;
+  }
+  if ((PINB & 1 << 4) && btn_pressed == true && timer_ms - released_debounce_timer >= debounce_delay_ms)
+  {
+    released_debounce_timer = timer_ms;
+    pressed_debounce_timer = timer_ms;
+    btn_pressed = false;
+  }
+  return _btn_isClick;
+}
