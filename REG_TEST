@@ -1,26 +1,34 @@
-#define BIT_SET(PORTx, BIT) (PORTx |= BIT)
-#define BIT_RESET(PORTx, BIT) (PORTx &= ~BIT)
-#define BIT_CHECK(PINx, BIT) (PINx & BIT)
-#define SP7 (1 << 5)
-#define SP5 (1 << 6)
-#define SP3 (1 << 7)
-#define SP1 (1 << 0)
-#define PRE_IN (1 << 1)
-#define SP7_PORT PORTD
-#define SP5_PORT PORTD
-#define SP3_PORT PORTD
-#define SP1_PORT PORTD
-#define PRE_IN_PORT PORTD
-#define PRE_IN_PORT_CHECK PIND
+#define BIT_SET(IO_PORTx, BIT) (IO_PORTx |= BIT)
+#define BIT_RESET(IO_PORTx, BIT) (IO_PORTx &= ~BIT)
+#define BIT_CHECK(IO_PINx, BIT) (IO_PINx & BIT)
+#define IO_PIN_0 0x1
+#define IO_PIN_1 0x2
+#define IO_PIN_2 0x4
+#define IO_PIN_3 0x8
+#define IO_PIN_4 0x10
+#define IO_PIN_5 0x20
+#define IO_PIN_6 0x40
+#define IO_PIN_7 0x80
+#define SP7_PIN IO_PIN_5
+#define SP5_PIN IO_PIN_6
+#define SP3_PIN IO_PIN_7
+#define SP1_PIN IO_PIN_0
+#define PRE_IN_PIN IO_PIN_1
+#define SP7_PORT ((uint8_t*) 0x2B)
+#define SP5_PORT ((uint8_t*) 0x2B)
+#define SP3_PORT ((uint8_t*) 0x2B)
+#define SP1_PORT ((uint8_t*) 0x25)
+#define PRE_IN_PORT ((uint8_t*) 0x25)
+#define PRE_IN_PORT_CHECK PINB
 #define INITIAL_STATE 0
 #define SECOND_STATE 1
 
 uint8_t btn_isClick(void);
 void IO_Init(void);
 
-uint8_t sp_list[5] = {SP7, SP5, SP3, SP1, PRE_IN};
-uint8_t sp_list_size = sizeof(sp_list) / sizeof(sp_list[0]) - 1;
-uint8_t sp_port_list[5] = {SP7_PORT, SP5_PORT, SP3_PORT, SP1_PORT, PRE_IN_PORT};
+uint8_t sp_pin_list[] = {SP7_PIN, SP5_PIN, SP3_PIN, SP1_PIN, PRE_IN_PIN};
+uint8_t sp_pin_list_size = sizeof(sp_pin_list) / sizeof(sp_pin_list[0]) - 1;
+uint8_t *sp_port_list[] = {SP7_PORT, SP5_PORT, SP3_PORT, SP1_PORT, PRE_IN_PORT};
 
 uint32_t period = 1000;
 
@@ -43,6 +51,7 @@ void loop() {
     if (start_flag == false)
     {
       switch_flag = false;
+      for(uint8_t sp_number_reset = 0; sp_number_reset < sp_pin_list_size + 1; ++sp_number_reset) BIT_RESET(*sp_port_list[sp_number_reset], sp_pin_list[sp_number_reset]);
       sp_number = INITIAL_STATE;
     }
     period_timer = timer_ms - period;
@@ -55,17 +64,17 @@ void loop() {
     {
       case (false):
         {
-          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN) == true && sp_number == INITIAL_STATE) BIT_RESET(PRE_IN_PORT, PRE_IN);
-          BIT_SET(sp_port_list[sp_number], sp_list[sp_number]);
+          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN_PIN) != 1 && sp_number == INITIAL_STATE) BIT_RESET(*PRE_IN_PORT, PRE_IN_PIN);
+          BIT_SET(*sp_port_list[sp_number], sp_pin_list[sp_number]);
           if (sp_number < SECOND_STATE) ++sp_number;
           else switch_flag = true;
         }
         break;
       case (true):
         {
-          BIT_RESET(sp_port_list[previous_sp_number], sp_list[previous_sp_number]);
+          BIT_RESET(*sp_port_list[previous_sp_number], sp_pin_list[previous_sp_number]);
           ++sp_number;
-          if (sp_number > sp_list_size) sp_number = INITIAL_STATE;
+          if (sp_number > sp_pin_list_size) sp_number = INITIAL_STATE;
           switch_flag = false;
         }
         break;
@@ -76,10 +85,10 @@ void loop() {
 
 void IO_Init(void)
 {
-  DDRB &= ~1 << 4;
-  PORTB |= 1 << 4;
-  DDRD |= 0xE0;
-  DDRB |= 0x3;
+  DDRB &= ~IO_PIN_4;
+  PORTB |= IO_PIN_4;
+  DDRD |= IO_PIN_5 | IO_PIN_6 | IO_PIN_7;
+  DDRB |= IO_PIN_0 | IO_PIN_1;
 }
 
 uint8_t btn_isClick(void)
@@ -90,14 +99,14 @@ uint8_t btn_isClick(void)
   const static uint8_t debounce_delay_ms = 50;
   static bool btn_pressed = false;
   bool _btn_isClick = false;
-  if (!(PINB & 1 << 4) && btn_pressed == false && timer_ms - pressed_debounce_timer >= debounce_delay_ms)
+  if ((PINB & (1 << 4)) == 0 && btn_pressed == false && timer_ms - pressed_debounce_timer >= debounce_delay_ms)
   {
     pressed_debounce_timer = timer_ms;
     released_debounce_timer = timer_ms;
     btn_pressed = true;
     _btn_isClick = true;
   }
-  if ((PINB & 1 << 4) && btn_pressed == true && timer_ms - released_debounce_timer >= debounce_delay_ms)
+  if ((PINB & (1 << 4)) != 0 && btn_pressed == true && timer_ms - released_debounce_timer >= debounce_delay_ms)
   {
     released_debounce_timer = timer_ms;
     pressed_debounce_timer = timer_ms;
