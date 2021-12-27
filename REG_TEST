@@ -1,6 +1,16 @@
-#define BIT_SET(IO_PORTx, BIT) (IO_PORTx |= BIT)
-#define BIT_RESET(IO_PORTx, BIT) (IO_PORTx &= ~BIT)
-#define BIT_CHECK(IO_PINx, BIT) (IO_PINx & BIT)
+#define SET_PIN(REG_x, IO_PIN_x) (REG_x |= IO_PIN_x)
+#define RESET_PIN(REG_x, IO_PIN_x) (REG_x &= ~IO_PIN_x)
+#define TOGGLE_PIN(REG_x, IO_PIN_x) (REG_x ^= IO_PIN_x)
+#define CHECK_PIN(REG_x, IO_PIN_x) (REG_x & IO_PIN_x)
+#define REG_DDRB ((uint8_t*) 0x24)
+#define REG_DDRC ((uint8_t*) 0x27)
+#define REG_DDRD ((uint8_t*) 0x2A)
+#define REG_PORTB ((uint8_t*) 0x25)
+#define REG_PORTC ((uint8_t*) 0x28)
+#define REG_PORTD ((uint8_t*) 0x2B)
+#define REG_PINB ((uint8_t*) 0x23)
+#define REG_PINC ((uint8_t*) 0x26)
+#define REG_PIND ((uint8_t*) 0x29)
 #define IO_PIN_0 0x1
 #define IO_PIN_1 0x2
 #define IO_PIN_2 0x4
@@ -9,28 +19,31 @@
 #define IO_PIN_5 0x20
 #define IO_PIN_6 0x40
 #define IO_PIN_7 0x80
+
+#define SP7_PORT REG_PORTD
+#define SP5_PORT REG_PORTD
+#define SP3_PORT REG_PORTD
+#define SP1_PORT REG_PORTB
+#define PRE_IN_PORT REG_PORTB
 #define SP7_PIN IO_PIN_5
 #define SP5_PIN IO_PIN_6
 #define SP3_PIN IO_PIN_7
 #define SP1_PIN IO_PIN_0
 #define PRE_IN_PIN IO_PIN_1
-#define SP7_PORT ((uint8_t*) 0x2B)
-#define SP5_PORT ((uint8_t*) 0x2B)
-#define SP3_PORT ((uint8_t*) 0x2B)
-#define SP1_PORT ((uint8_t*) 0x25)
-#define PRE_IN_PORT ((uint8_t*) 0x25)
-#define PRE_IN_PORT_CHECK PINB
+#define BTN_PORT REG_PINB
+#define BTN_PIN IO_PIN_4
+
 #define INITIAL_STATE 0
 #define SECOND_STATE 1
 
-uint8_t btn_isClick(void);
+bool btn_isClick(void);
 void IO_Init(void);
 
-uint8_t sp_pin_list[] = {SP7_PIN, SP5_PIN, SP3_PIN, SP1_PIN, PRE_IN_PIN};
-uint8_t sp_pin_list_size = sizeof(sp_pin_list) / sizeof(sp_pin_list[0]) - 1;
 uint8_t *sp_port_list[] = {SP7_PORT, SP5_PORT, SP3_PORT, SP1_PORT, PRE_IN_PORT};
+const uint8_t sp_pin_list[] = {SP7_PIN, SP5_PIN, SP3_PIN, SP1_PIN, PRE_IN_PIN};
+const uint8_t sp_pin_list_size = sizeof(sp_pin_list) / sizeof(sp_pin_list[0]) - 1;
 
-uint32_t period = 1000;
+uint16_t period = 1000;
 
 void setup() {
 
@@ -41,8 +54,8 @@ void setup() {
 void loop() {
 
   uint32_t timer_ms = millis();
-  static uint32_t period_timer = 0;
-  static uint8_t sp_number = 0;
+  static uint32_t period_timer = INITIAL_STATE;
+  static uint8_t sp_number = INITIAL_STATE;
   static bool switch_flag = false;
   static bool start_flag = false;
   if (btn_isClick())
@@ -50,31 +63,36 @@ void loop() {
     start_flag = !start_flag;
     if (start_flag == false)
     {
-      switch_flag = false;
-      for(uint8_t sp_number_reset = 0; sp_number_reset < sp_pin_list_size + 1; ++sp_number_reset) BIT_RESET(*sp_port_list[sp_number_reset], sp_pin_list[sp_number_reset]);
       sp_number = INITIAL_STATE;
+      switch_flag = false;
+      for (uint8_t sp_number_reset = INITIAL_STATE; sp_number_reset <= sp_pin_list_size; ++sp_number_reset)
+      {
+        RESET_PIN(*sp_port_list[sp_number_reset], sp_pin_list[sp_number_reset]);
+      }
     }
-    period_timer = timer_ms - period;
+    else period_timer = timer_ms - period;
   }
-  if (timer_ms - period_timer >= period && start_flag == true)
+  if (start_flag == true && timer_ms - period_timer >= period)
   {
     period_timer = timer_ms;
-    uint8_t previous_sp_number = sp_number - 1;
     switch (switch_flag)
     {
       case (false):
         {
-          if (BIT_CHECK(PRE_IN_PORT_CHECK, PRE_IN_PIN) != 1 && sp_number == INITIAL_STATE) BIT_RESET(*PRE_IN_PORT, PRE_IN_PIN);
-          BIT_SET(*sp_port_list[sp_number], sp_pin_list[sp_number]);
+          if (sp_number == INITIAL_STATE && CHECK_PIN(*sp_port_list[sp_pin_list_size], sp_pin_list[sp_pin_list_size]) != INITIAL_STATE)
+          {
+            RESET_PIN(*sp_port_list[sp_pin_list_size], sp_pin_list[sp_pin_list_size]);
+          }
+          SET_PIN(*sp_port_list[sp_number], sp_pin_list[sp_number]);
           if (sp_number < SECOND_STATE) ++sp_number;
           else switch_flag = true;
         }
         break;
       case (true):
         {
-          BIT_RESET(*sp_port_list[previous_sp_number], sp_pin_list[previous_sp_number]);
-          ++sp_number;
-          if (sp_number > sp_pin_list_size) sp_number = INITIAL_STATE;
+          uint8_t previous_sp_number = sp_number - 1;
+          RESET_PIN(*sp_port_list[previous_sp_number], sp_pin_list[previous_sp_number]);
+          if (++sp_number > sp_pin_list_size) sp_number = INITIAL_STATE;
           switch_flag = false;
         }
         break;
@@ -85,31 +103,31 @@ void loop() {
 
 void IO_Init(void)
 {
-  DDRB &= ~IO_PIN_4;
-  PORTB |= IO_PIN_4;
-  DDRD |= IO_PIN_5 | IO_PIN_6 | IO_PIN_7;
-  DDRB |= IO_PIN_0 | IO_PIN_1;
+  RESET_PIN(*REG_DDRB, IO_PIN_4); //INPUT
+  SET_PIN(*REG_PORTB, IO_PIN_4);  //PULLUP
+  SET_PIN(*REG_DDRD, IO_PIN_5 | IO_PIN_6 | IO_PIN_7); //OUTPUT
+  SET_PIN(*REG_DDRB, IO_PIN_0 | IO_PIN_1);            //OUTPUT
 }
 
-uint8_t btn_isClick(void)
+bool btn_isClick(void)
 {
-  uint32_t timer_ms = millis();
+  uint32_t _timer_ms = millis();
   static uint32_t pressed_debounce_timer = 0;
   static uint32_t released_debounce_timer = 0;
   const static uint8_t debounce_delay_ms = 50;
   static bool btn_pressed = false;
   bool _btn_isClick = false;
-  if ((PINB & (1 << 4)) == 0 && btn_pressed == false && timer_ms - pressed_debounce_timer >= debounce_delay_ms)
+  if ((CHECK_PIN(*BTN_PORT, BTN_PIN)) == 0 && btn_pressed == false && _timer_ms - pressed_debounce_timer >= debounce_delay_ms)
   {
-    pressed_debounce_timer = timer_ms;
-    released_debounce_timer = timer_ms;
+    pressed_debounce_timer = _timer_ms;
+    released_debounce_timer = _timer_ms;
     btn_pressed = true;
     _btn_isClick = true;
   }
-  if ((PINB & (1 << 4)) != 0 && btn_pressed == true && timer_ms - released_debounce_timer >= debounce_delay_ms)
+  if ((CHECK_PIN(*BTN_PORT, BTN_PIN)) != 0 && btn_pressed == true && _timer_ms - released_debounce_timer >= debounce_delay_ms)
   {
-    released_debounce_timer = timer_ms;
-    pressed_debounce_timer = timer_ms;
+    pressed_debounce_timer = _timer_ms;
+    released_debounce_timer = _timer_ms;
     btn_pressed = false;
   }
   return _btn_isClick;
